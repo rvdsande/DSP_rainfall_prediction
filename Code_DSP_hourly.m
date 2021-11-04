@@ -390,19 +390,3 @@ function err = mae(prediction, observation)
     end
     err = sum/n;
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

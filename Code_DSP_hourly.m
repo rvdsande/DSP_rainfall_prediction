@@ -1,11 +1,11 @@
 %Project: Statistical Digital Signal Processing
 %Subject: Project Rainfall Estimation using ARMA models / Date: 6-10-2021
-%Authors: Martijn Hubers, Robin van der Sande
+%Authors: Martijn Hubers, Robin van der Sande 
 
 clear all 
 close all
 
-%%%%%%%%%% Data analysis %%%%%%%%%%
+%%%%%%%%%% 1. Data analysis %%%%%%%%%%
 
 %The rainfall data matrix T contains 4 collums:
 %Collum 1: date 20110102-> 02-01-2011
@@ -86,7 +86,7 @@ xlabel('time in [h]')
 ylabel('hourly rainfall in [mm]')
 ylim([0,12])
 
-%%%%%%%%%% Data processing %%%%%%%%%%
+%%%%%%%%%% 2. Data processing %%%%%%%%%%
 % Analyse the rainfall data of the modeling set
 figure(2)
 subplot(2,1,1)
@@ -125,66 +125,23 @@ std_x2 = std(rain_M_diff);
 adftest(rain_M_diff)
 kpsstest(rain_M_diff)
 
-%%%%%%%%%% Model identification %%%%%%%%%%
-%plot the autocorrelation and partial autocorrelation function
+%%%%%%%%%% 3. Model identification %%%%%%%%%%
+% Plot the autocorrelation and partial autocorrelation function
 figure(4)
 autocorr(rain_M_diff)
 figure(5)
 parcorr(rain_M_diff)
 
-%Determine the ARMA model order using AIC
+% Determine the ARMA model order using AIC
 pMax = 10;
 qMax = 5;
-[AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, x2);
+%[AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, rain_M_diff);
 P = 9;
 Q = 3;
 
 %[P2,Q2] = ARMA_Order_Select(x1,pMax,qMax,1);
 
-save('Raindata2.mat')
-
-function [AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, data)
-
-AIC = ones(pMax+1, qMax+1)*10^5; % *10^5 makes sure that aic(1,1) is not selected as minimum
-
-for p=0:pMax
-    for q=0:qMax
-        if p+q ~= 0 %% Can't calculate for p=q=0
-            model = arima(p,0,q); % Create ARMA(p,0,q) model 
-            [~, ~, logL] = estimate(model, data, 'Display', 'off'); % Calculate loglikelihood from the ARMA(p,0,q) model fitted with the data
-            numParam = p+q;
-            AIC(p+1,q+1) = aicbic(logL, numParam); % Calculate AIC
-        end        
-    end
-end
-
-% AIC is a matrix where the row number - 1 is the AR (p) coefficient number, and
-% the column number - 1 the MA (q) coefficient number
-
-% Calculate the minimum AIC
-[min_aic1, AR_nums_aic] = min(AIC,[],1); % AR_nums_aic is array that contains the AR order (p) at the lowest AIC for each MA coefficient q=1,..,q_max 
-[min_aic, MA_num_aic] = min(min_aic1, [], 2); % MA_num_aic gives the MA coefficient order (q) at the lowest AIC
-AR_num_aic = AR_nums_aic(MA_num_aic); % AR_nums_aic gives the AR coefficient order (p) at the lowest AIC
-
-% Corresponding values for p and q
-P = AR_num_aic-1;
-Q = MA_num_aic-1;
-
-% Minimum aic
-minAIC = min_aic;
-end
-
-function AIC = calculate_aic(p, q, data)
-    model = arima(p,0,q); % Create ARMA(p,0,q) model 
-    [~, ~, logL] = estimate(model, data, 'Display', 'off'); % Calculate loglikelihood from the ARMA(p,0,q) model with data
-    numParam = p+q;
-    AIC = aicbic(logL, numParam);
-end
-
-%%%%%% Parameter esitmation %%%%%%
-load('Raindata2.mat')
-P = 9;
-Q = 3;
+%%%%%%%%%% 4. Parameter esitmation %%%%%%%%%%
 
 for i = 1:4
     if (i ==1)
@@ -200,7 +157,7 @@ for i = 1:4
     x3 = rain_autumn_P;
     x4 = diff(rain_autumn_P);
     end 
-%First fit a AR(P) model uing the autocorrelation method
+%First fit an AR(P) model uing the autocorrelation method
 [a_p,err] = ARfit(x3,P);
 
 model_1(i) = arima(P,0,0);
@@ -245,7 +202,159 @@ parcorr(stdres)
 end
 end
 
-save('Raindata3.mat')
+%%%%%%%%%% 5. Rainfall preciction %%%%%%%%%%
+
+start_index = 8761; %index of the 1st hour of Januari 1st 2020
+prev_data_points = 100; 
+
+for i = start_index:length(date_time_V)-1
+    if(((date_time_V(i).Month >= 12) || (date_time_V(i).Month <= 2)))
+    %Winter set-> December, January, Febuary
+    model = model_2(1);
+    elseif((date_time_V(i).Month >= 3) && (date_time_V(i).Month <= 5))
+    %Spring set-> March, April, May
+    model = model_2(2);  
+    elseif((date_time_V(i).Month >= 6) && (date_time_V(i).Month <= 8))
+    %Summer set-> June, July, August
+    model = model_2(3); 
+    elseif((date_time_V(i).Month >= 9) && (date_time_V(i).Month <= 11))
+    %Autumn set-> Septemeber, October, November
+    model = model_2(4);    
+    end
+    
+    % Make the prediction
+    x_ahead = forecast(model,3,rain_V(i-prev_data_points:i-1)); 
+    x_for1(i+1-start_index) = x_ahead(1);           % 1 hour ahead
+    x_for2(i+2-start_index) = x_ahead(2);           % 2 hours ahead
+    x_for3(i+3-start_index) = x_ahead(3);           % 3 hours ahead
+    x_real(i+1-start_index) = rain_V(i);            % Observed rain
+end
+
+x_time = date_time_V(start_index:length(rain_V)-1);
+
+figure(8)
+plot(x_time, x_for1)
+hold on 
+plot(x_time, x_real)
+ylabel("Rainfall (mm)")
+legend('Prediction', 'Observation')
+title('Prediction of 1 hour ahead')
+
+figure(9)
+plot(x_time, x_for2(1:end-1))
+hold on 
+plot(x_time, x_real)
+ylabel("Rainfall (mm)")
+legend('Prediction', 'Observation')
+title('Prediction of 2 hours ahead')
+
+figure(10)
+plot(x_time, x_for3(1:end-2))
+hold on 
+plot(x_time, x_real)
+ylabel("Rainfall (mm)")
+legend('Prediction', 'Observation')
+title('Prediction of 3 hours ahead')
+
+figure(11)
+plot(x_time, x_for1)
+hold on 
+plot(x_time, x_for2(1:end-1))
+plot(x_time, x_for3(1:end-2))
+plot(x_time, x_real)
+ylabel("Rainfall (mm)")
+legend('1 hour', '2 hours', '3 hours', 'Observed')
+title('Prediction of rainfall for 1, 2, and 3 hours ahead')
+
+index_winter_start1 = 1;
+index_spring = 1441; % Start of spring data
+index_summer = 3649;
+index_autumn = 5857;
+index_winter_start2 = 8041;
+
+% Calculate mae errors
+% Winter
+predRain = x_for1(1:index_spring-1);
+predRain = [predRain x_for1(index_winter_start2:end-1)];
+realRain = x_real(1:index_spring-1);
+realRain = [realRain x_real(index_winter_start2:end-1)];
+error_winter1 = mae(predRain, realRain);
+
+predRain = x_for2(1:index_spring-1);
+predRain = [predRain x_for2(index_winter_start2:end-1)];
+realRain = x_real(1:index_spring-1);
+realRain = [realRain x_real(index_winter_start2:end-1)];
+error_winter2 = mae(predRain, realRain);
+
+predRain = x_for3(1:index_spring-1);
+predRain = [predRain x_for3(index_winter_start2:end-1)];
+realRain = x_real(1:index_spring-1);
+realRain = [realRain x_real(index_winter_start2:end-1)];
+error_winter3 = mae(predRain, realRain);
+
+error_winter = [error_winter1 error_winter2 error_winter3];
+
+% Spring
+error_spring1 = mae(x_for1(index_spring:index_summer-1), x_real(index_spring:index_summer-1));
+error_spring2 = mae(x_for2(index_spring:index_summer-1), x_real(index_spring:index_summer-1));
+error_spring3 = mae(x_for3(index_spring:index_summer-1), x_real(index_spring:index_summer-1));
+error_spring = [error_spring1 error_spring2 error_spring3];
+
+% Summer
+error_summer1 = mae(x_for1(index_summer:index_autumn-1), x_real(index_summer:index_autumn-1));
+error_summer2 = mae(x_for2(index_summer:index_autumn-1), x_real(index_summer:index_autumn-1));
+error_summer3 = mae(x_for3(index_summer:index_autumn-1), x_real(index_summer:index_autumn-1));
+error_summer = [error_summer1 error_summer2 error_summer3];
+
+% Autumn
+error_autumn1 = mae(x_for1(index_autumn:index_winter_start2-1), x_real(index_autumn:index_winter_start2-1));
+error_autumn2 = mae(x_for2(index_autumn:index_winter_start2-1), x_real(index_autumn:index_winter_start2-1));
+error_autumn3 = mae(x_for3(index_autumn:index_winter_start2-1), x_real(index_autumn:index_winter_start2-1));
+error_autumn = [error_autumn1 error_autumn2 error_autumn3];
+
+% Total
+error1 = mae(x_for1, x_real);
+error2 = mae(x_for2, x_real);
+error3 = mae(x_for3, x_real);
+error_total = [error1 error2 error3];
+
+function [AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, data)
+
+AIC = ones(pMax+1, qMax+1)*10^5; % *10^5 makes sure that aic(1,1) is not selected as minimum
+
+for p=0:pMax
+    for q=0:qMax
+        if p+q ~= 0 %% Can't calculate for p=q=0
+            model = arima(p,0,q); % Create ARMA(p,0,q) model 
+            [~, ~, logL] = estimate(model, data, 'Display', 'off'); % Calculate loglikelihood from the ARMA(p,0,q) model fitted with the data
+            numParam = p+q;
+            AIC(p+1,q+1) = aicbic(logL, numParam); % Calculate AIC
+        end
+    end
+end
+
+% AIC is a matrix where the row number - 1 is the AR (p) coefficient number, and
+% the column number - 1 the MA (q) coefficient number
+
+% Calculate the minimum AIC
+[min_aic1, AR_nums_aic] = min(AIC,[],1); % AR_nums_aic is array that contains the AR order (p) at the lowest AIC for each MA coefficient q=1,..,q_max 
+[min_aic, MA_num_aic] = min(min_aic1, [], 2); % MA_num_aic gives the MA coefficient order (q) at the lowest AIC
+AR_num_aic = AR_nums_aic(MA_num_aic); % AR_nums_aic gives the AR coefficient order (p) at the lowest AIC
+
+% Corresponding values for p and q
+P = AR_num_aic-1;
+Q = MA_num_aic-1;
+
+% Minimum aic
+minAIC = min_aic;
+end
+
+function AIC = calculate_aic(p, q, data)
+    model = arima(p,0,q); % Create ARMA(p,0,q) model 
+    [~, ~, logL] = estimate(model, data, 'Display', 'off'); % Calculate loglikelihood from the ARMA(p,0,q) model with data
+    numParam = p+q;
+    AIC = aicbic(logL, numParam);
+end
 
 function X = convmatrix(x,p)
 %Calulate the convolution matrix X of size p for a given vector x  
@@ -272,8 +381,15 @@ err = abs(X(1:N+p,1)'*X*a);
 a = a(2:end);
 end
 
-%%%%%% Rainfall preciction %%%%%%
-
+function err = mae(prediction, observation)
+    n = length(observation);
+    sum = 0;
+    for i = 1:n
+        error = abs(observation(i) - prediction(i));
+        sum = sum + error;
+    end
+    err = sum/n;
+end
 
 
 

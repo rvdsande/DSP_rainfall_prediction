@@ -1,21 +1,21 @@
-%Project: Statistical Digital Signal Processing
-%Subject: Project Rainfall Estimation using ARMA models / Date: 6-10-2021
-%Authors: Martijn Hubers, Robin van der Sande 
+% Project: Statistical Digital Signal Processing
+% Subject: Project Rainfall Estimation using ARMA models / Date: 6-10-2021
+% Authors: Martijn Hubers, Robin van der Sande 
 
 clear all 
 close all
 
 %%%%%%%%%% 1. Data analysis %%%%%%%%%%
 
-%The rainfall data matrix T contains 4 collums:
-%Collum 1: date 20110102-> 02-01-2011
-%Collum 2: time of data in hours 13 -> 12:00 till 13:00
-%Collum 3: cumulative rainfall in mm
-%Collum 4: Air pressure in 0.1hpa with respect to seelevel
+% The rainfall data matrix T contains 4 collums:
+% Collum 1: date 20110102-> 02-01-2011
+% Collum 2: time of data in hours 13 -> 12:00 till 13:00
+% Collum 3: cumulative rainfall in mm
+% Collum 4: Air pressure in 0.1hpa with respect to seelevel
 load('Raindata.mat')
 rain = T(:,3); % rain in mm 
 
-%Define the date and time as datetime value
+% Define the date and time as datetime value
 for i = 1:length(rain)  
 date = num2str(T(i,1))-'0';
 day = date(8)+10*date(7);
@@ -24,12 +24,12 @@ year = date(4)+10*date(3)+100*date(2)+1000*date(1);
 date_time(i) = datetime(year,month,day,T(i,2),0,0);
 end 
 date_time = date_time';
-%Split the rainfall data into 3 sets and four seasons:
+% Split the rainfall data into 3 sets and four seasons:
 %   M -> the modeling set: 2011-2014
 %   P -> the parameter set: 2015-2018
 %   V -> the verification set: 2019-2020
 
-%Winter set-> December, January, Febuary
+% Winter set-> December, January, Febuary
 idx = (((date_time.Month >= 12) | (date_time.Month <= 2)) & (date_time.Year <= 2014));
 rain_winter_M = rain(idx);
 idx = (((date_time.Month >= 12) | (date_time.Month <= 2)) & ((date_time.Year <= 2018) & (date_time.Year >= 2015)));
@@ -37,7 +37,7 @@ rain_winter_P = rain(idx);
 idx = (((date_time.Month >= 12) | (date_time.Month <= 2)) & (date_time.Year >= 2019));
 rain_winter_V = rain(idx);
 
-%Spring set-> March, April, May
+% Spring set-> March, April, May
 idx = (((date_time.Month >= 3) & (date_time.Month <= 5)) & (date_time.Year <= 2014));
 rain_spring_M = rain(idx);
 idx = (((date_time.Month >= 3) & (date_time.Month <= 5)) & ((date_time.Year <= 2018) & (date_time.Year >= 2015)));
@@ -45,7 +45,7 @@ rain_spring_P = rain(idx);
 idx = (((date_time.Month >= 3) & (date_time.Month <= 5)) & (date_time.Year >= 2019));
 rain_spring_V = rain(idx);
 
-%Summer set-> June, July, August
+% Summer set-> June, July, August
 idx = (((date_time.Month >= 6) & (date_time.Month <= 8)) & (date_time.Year <= 2014));
 rain_summer_M = rain(idx);
 idx = (((date_time.Month >= 5) & (date_time.Month <= 8)) & ((date_time.Year <= 2018) & (date_time.Year >= 2015)));
@@ -53,7 +53,7 @@ rain_summer_P = rain(idx);
 idx = (((date_time.Month >= 5) & (date_time.Month <= 8)) & (date_time.Year >= 2019));
 rain_summer_V = rain(idx);
 
-%Autumn set-> Septemeber, October, November
+% Autumn set-> Septemeber, October, November
 idx = (date_time.Month >= 9) & (date_time.Month <= 11);
 idx = (((date_time.Month >= 9) & (date_time.Month <= 11)) & (date_time.Year <= 2014));
 rain_autumn_M = rain(idx);
@@ -62,16 +62,16 @@ rain_autumn_P = rain(idx);
 idx = (((date_time.Month >= 9) & (date_time.Month <= 11)) & (date_time.Year >= 2019));
 rain_autumn_V = rain(idx);
 
-%The complete modeling set 
+% The complete modeling set 
 idx = (date_time.Year <= 2014);
 rain_M = rain(idx);
 
-%The complete verification set 
+% The complete verification set 
 idx = (date_time.Year >= 2019);
 rain_V = rain(idx);
 date_time_V = date_time(idx);
 
-%Plot the data for the entire data set
+% Plot the data for the entire data set
 figure(1)
 subplot(2,1,1)
 plot(date_time(1416:3623),rain(1416:3623))
@@ -135,11 +135,9 @@ parcorr(rain_M_diff)
 % Determine the ARMA model order using AIC
 pMax = 10;
 qMax = 5;
-%[AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, rain_M_diff);
-P = 9;
-Q = 3;
-
-%[P2,Q2] = ARMA_Order_Select(x1,pMax,qMax,1);
+[AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, rain_M_diff);
+%P = 9; %Note the results of the AIC depend on the Matlab version
+%Q = 3;
 
 %%%%%%%%%% 4. Parameter esitmation %%%%%%%%%%
 
@@ -157,7 +155,7 @@ for i = 1:4
     x3 = rain_autumn_P;
     x4 = diff(rain_autumn_P);
     end 
-%First fit an AR(P) model uing the autocorrelation method
+% First fit an AR(P) model uing the autocorrelation method
 [a_p,err] = ARfit(x3,P);
 
 model_1(i) = arima(P,0,0);
@@ -181,7 +179,7 @@ subplot(2,2,4)
 parcorr(stdres)
 end
 
-%Second fit a ARMA(P,Q) model using the estimate fucntion
+% Second fit a ARMA(P,Q) model using the estimate fucntion
 model_2(i) = arima(P,1,Q);
 model_2(i) = estimate(model_2(i),x3);
 
@@ -317,6 +315,8 @@ error1 = mae(x_for1, x_real);
 error2 = mae(x_for2, x_real);
 error3 = mae(x_for3, x_real);
 error_total = [error1 error2 error3];
+
+%%%%%%%%%% 6. Function description %%%%%%%%%%
 
 function [AIC, P, Q, minAIC] = calculate_min_aic(pMax, qMax, data)
 
